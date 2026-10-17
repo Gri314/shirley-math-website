@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circle Area: The Parallelogram Proof</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --ghost: #2c3e50;
+            --bg: #f4f7f6;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: var(--bg);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 90vw;
+            height: 60vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            cursor: pointer;
+            border: 2px solid #eee;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 400px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .label {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #333;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* The Magic: CSS Interpolation */
+        .slice {
+            fill: var(--primary);
+            stroke: white;
+            stroke-width: 0.5;
+            /* Slow, smooth interpolation over 1.8 seconds */
+            transition: transform 1.8s cubic-bezier(0.45, 0, 0.55, 1);
+        }
+
+        .ghost-circle {
+            fill: var(--ghost);
+            opacity: 0.15;
+        }
+
+        .hint-text {
+            color: #888;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <svg id="svg-canvas" viewBox="0 0 1000 600">
+            <circle id="ghost" cx="250" cy="300" r="150" class="ghost-circle" />
+            <g id="slices-group"></g>
+        </svg>
+    </div>
+
+    <div class="controls">
+        <div class="label" id="n-display">n = 0</div>
+        <input type="range" id="n-slider" min="0" max="100" step="2" value="0">
+        <div class="hint-text">Click the circle to rearrange</div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('n-slider');
+        const nDisplay = document.getElementById('n-display');
+        const slicesGroup = document.getElementById('slices-group');
+        const container = document.getElementById('canvas-container');
+        
+        const centerX = 250;
+        const centerY = 300;
+        const radius = 150;
+        let isRearranged = false;
+
+        // Creates a slice path with the tip at (0,0) for easy rotation
+        function getSlicePath(r, angleRad) {
+            const halfAngle = angleRad / 2;
+            const x1 = r * Math.cos(-halfAngle);
+            const y1 = r * Math.sin(-halfAngle);
+            const x2 = r * Math.cos(halfAngle);
+            const y2 = r * Math.sin(halfAngle);
+            return `M 0 0 L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
+        }
+
+        function updateLayout() {
+            const n = parseInt(slider.value);
+            nDisplay.innerText = `n = ${n}`;
+            
+            // If n=0, just show a full circle
+            if (n === 0) {
+                slicesGroup.innerHTML = `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="var(--primary)" />`;
+                return;
+            }
+
+            // Create slices if they don't exist or count changed
+            if (slicesGroup.children.length !== n || slicesGroup.firstChild.tagName === 'circle') {
+                slicesGroup.innerHTML = '';
+                const angleRad = (2 * Math.PI) / n;
+                const pathData = getSlicePath(radius, angleRad);
+
+                for (let i = 0; i < n; i++) {
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    path.setAttribute("d", pathData);
+                    path.setAttribute("class", "slice");
+                    slicesGroup.appendChild(path);
+                }
+            }
+
+            // Apply transforms (this triggers the CSS transition)
+            const slices = slicesGroup.querySelectorAll('.slice');
+            const angleStepRad = (2 * Math.PI) / n;
+            const sliceWidth = radius * angleStepRad; // The base of the slice
+            const totalWidth = (n / 2) * sliceWidth;
+            const startX = 550; // Where the parallelogram starts
+
+            slices.forEach((slice, i) => {
+                if (isRearranged) {
+                    // PARALLELOGRAM POSITION
+                    const isEven = i % 2 === 0;
+                    const column = Math.floor(i / 2);
+                    
+                    let x, y, rot;
+                    if (isEven) {
+                        // Pointing UP
+                        x = startX + (column * sliceWidth) + (sliceWidth / 2);
+                        y = centerY + (radius / 2);
+                        rot = -90;
+                    } else {
+                        // Pointing DOWN
+                        x = startX + (column * sliceWidth) + sliceWidth;
+                        y = centerY - (radius / 2);
+                        rot = 90;
+                    }
+                    slice.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg)`;
+                } else {
+                    // CIRCLE POSITION
+                    const rot = (i * (360 / n));
+                    slice.style.transform = `translate(${centerX}px, ${centerY}px) rotate(${rot}deg)`;
+                }
+            });
+        }
+
+        function toggle() {
+            if (parseInt(slider.value) === 0) return;
+            isRearranged = !isRearranged;
+            updateLayout();
+        }
+
+        slider.addEventListener('input', () => {
+            isRearranged = false; // Always snap back to circle when n changes for clarity
+            updateLayout();
+        });
+
+        container.addEventListener('click', toggle);
+
+        // Init
+        updateLayout();
+    </script>
+</body>
+</html>
